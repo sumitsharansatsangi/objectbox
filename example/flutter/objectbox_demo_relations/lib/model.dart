@@ -9,7 +9,7 @@ class Tag {
   int id;
   String name;
 
-  Tag(this.name, {this.id = 0});
+  Tag( { this.id = 0, required this.name});
 }
 
 @Entity()
@@ -24,7 +24,7 @@ class Task {
   @Property(type: PropertyType.date)
   DateTime? dateFinished;
 
-  Task(this.text, {this.id = 0, DateTime? dateCreated})
+  Task( {this.id = 0, required this.text, DateTime? dateCreated})
       : dateCreated = dateCreated ?? DateTime.now();
 
   String get dateCreatedFormat =>
@@ -50,8 +50,8 @@ class Task {
     }
   }
 
-  /// If the task is new returns 'Created on <date>',
-  /// if it is finished 'Finished on <date>'. The date is formatted
+  /// If the task is new returns 'Created on `<date>`',
+  /// if it is finished 'Finished on `<date>'`. The date is formatted
   /// for the current locale.
   String getStateText() {
     String text;
