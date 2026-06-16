@@ -48,6 +48,8 @@ String obxPropertyTypeToString(int type) {
       return 'doubleVector';
     case OBXPropertyType.StringVector:
       return 'stringVector';
+    case OBXPropertyType.Flex:
+      return 'flex';
   }
 
   throw ArgumentError.value(type, 'type', 'Invalid OBXPropertyType');
@@ -66,8 +68,10 @@ int propertyTypeToOBXPropertyType(PropertyType type) {
     case PropertyType.float:
       return OBXPropertyType.Float;
     case PropertyType.date:
+    case PropertyType.dateUtc:
       return OBXPropertyType.Date;
     case PropertyType.dateNano:
+    case PropertyType.dateNanoUtc:
       return OBXPropertyType.DateNano;
     case PropertyType.byteVector:
       return OBXPropertyType.ByteVector;
@@ -79,6 +83,8 @@ int propertyTypeToOBXPropertyType(PropertyType type) {
       return OBXPropertyType.IntVector;
     case PropertyType.floatVector:
       return OBXPropertyType.FloatVector;
+    case PropertyType.flex:
+      return OBXPropertyType.Flex;
     }
 }
 
@@ -158,6 +164,21 @@ abstract class OBXPropertyFlags {
   /// If a date property has this flag (max. one per entity type), the date value specifies the time by which
   /// the object expires, at which point it MAY be removed (deleted), which can be triggered by an API call.
   static const int EXPIRATION_TIME = 65536;
+
+  /// Marks a Long (64-bit integer) property as the sync clock, a "hybrid logical clock" to resolve Sync conflicts.
+  /// These clock values allow "last write wins" conflict resolution.
+  /// There can be only one sync clock per sync entity type; which is also recommended for basic conflict resolution.
+  /// For new objects, initialize a property value to 0 to reserve "a slot" in the object data.
+  /// ObjectBox Sync will update this property automatically on put operations.
+  /// As a hybrid clock, it combines a wall clock with a logical counter to compensate for some clock skew effects.
+  static const int SYNC_CLOCK = 131072;
+
+  /// Marks a Long (64-bit integer) property as the "sync precedence" to customize Sync conflict resolution.
+  /// Developer-assigned precedence values are then used to resolve conflicts via "higher precedence wins".
+  /// Defining and assigning precedence values are completely in the hands of the developer (the ObjectBox user).
+  /// There can be only one sync precedence per sync entity type.
+  /// Typically, it is combined with a sync clock, with the latter being the tie-breaker for equal precedence values.
+  static const int SYNC_PRECEDENCE = 262144;
 }
 
 abstract class OBXPropertyType {
@@ -354,4 +375,35 @@ abstract class OBXExternalPropertyType {
   /// Representing type: string vector with 2 elements (index 0: pattern, index 1: options)
   /// Encoding: 1:1 string representation
   static const int MongoRegex = 127;
+}
+
+/// Flags to adjust Sync client behavior.
+abstract class OBXSyncFlags {
+  /// Enable (rather extensive) logging on how IDs are mapped (local <-> global)
+  static const int DebugLogIdMapping = 1;
+
+  /// If the client gets in a state that does not allow any further synchronization, this flag instructs Sync to
+  /// keep local data nevertheless. While this preserves data, you need to resolve the situation manually.
+  /// For example, you could backup the data and start with a fresh database.
+  /// Note that the default behavior (this flag is not set) is to wipe existing data from all sync-enabled types and
+  /// sync from scratch from the server.
+  /// Client-only: setting this flag for Sync server has no effect.
+  static const int KeepDataOnSyncError = 2;
+
+  /// Logs Sync filter variables used for each client, e.g. values provided by JWT or the client's login message.
+  static const int DebugLogFilterVariables = 4;
+
+  /// When set, remove operations will include the full object data in the TX log (REMOVE_OBJECT command).
+  /// This allows Sync filters to filter out remove operations based on the object content.
+  /// Without this flag, remove operations only contain the object ID and cannot be filtered.
+  /// Note: this increases the size of TX logs for remove operations.
+  static const int RemoveWithObjectData = 8;
+
+  /// Enables debug logging of TX log processing.
+  /// For now, this only has an effect on SyncClients (Sync Server has extensive debug logs already).
+  static const int DebugLogTxLogs = 16;
+
+  // Note: manually added, 5.1.0 release objectbox-sync.h file is missing it
+  /// Skips invalid (put object) operations in the TX log instead of failing.
+  static const int SkipInvalidTxOps = 32;
 }

@@ -1,5 +1,181 @@
 ## latest
 
+## 5.3.2 (2026-05-20)
+
+* Update ObjectBox database for Flutter Linux/Windows, Dart Native apps to [5.3.2-2026-05-05](https://github.com/objectbox/objectbox-c/releases/tag/v5.3.2)
+* Update ObjectBox database for Flutter Android apps to `5.3.2-2026-05-05`.  
+  If your project is [using Admin](https://docs.objectbox.io/data-browser#admin-for-android), make sure to update to `io.objectbox:objectbox-android-objectbrowser:5.4.2` in `android/app/build.gradle.kts` or `android/app/build.gradle`.
+* Update ObjectBox database for Flutter iOS/macOS apps to `5.3.2-next-2026-05-16`.
+  For existing projects, run `pod repo update` and `pod update ObjectBox` in the `ios` or `macos` directories.
+
+## 5.3.1 (2026-03-27)
+
+* Update ObjectBox database for Flutter Linux/Windows, Dart Native apps to [5.3.1-2026-03-26](https://github.com/objectbox/objectbox-c/releases/tag/v5.3.1)
+* Update ObjectBox database for Flutter Android apps to `5.3.1-2026-03-26`.
+  If your project is [using Admin](https://docs.objectbox.io/data-browser#admin-for-android), make
+  sure to update to `io.objectbox:objectbox-android-objectbrowser:5.4.1` in
+  `android/app/build.gradle.kts` or `android/app/build.gradle`.
+* Update ObjectBox database for Flutter iOS/macOS apps to `5.3.1-2026-03-26`.
+  For existing projects, run `pod repo update` and `pod update ObjectBox` in the `ios` or `macos` directories.
+
+### Sync
+
+* Critical fix for Sync clocks
+* Add `Sync.syncClockTimestamp()` to get a timestamp from a Sync clock (and a variation for a corrected timestamp)
+
+## 5.3.0 (2026-03-25)
+
+**Warning:** Do not use this version for sync clocks, it contains a severe bug! Use 5.3.1 instead.
+
+* Update ObjectBox database for Flutter Linux/Windows, Dart Native apps to [5.3.0-2026-03-23](https://github.com/objectbox/objectbox-c/releases/tag/v5.3.0)
+* Update ObjectBox database for Flutter Android apps to `5.3.0-2026-03-23`.
+  If your project is [using Admin](https://docs.objectbox.io/data-browser#admin-for-android), make
+  sure to update to `io.objectbox:objectbox-android-objectbrowser:5.4.0` in
+  `android/app/build.gradle.kts` or `android/app/build.gradle`.
+* Update ObjectBox database for Flutter iOS/macOS apps to `5.3.0-2026-03-23`.
+  For existing projects, run `pod repo update` and `pod update ObjectBox` in the `ios` or `macos` directories.
+
+### Sync
+
+* Sync protocol version 10
+* [Conflict resolution](https://sync.objectbox.io/syncing-concurrent-changes) via the new 
+  annotations `@SyncClock()` and `@SyncPrecedence()` (allows last win with custom conflict resolution)
+* SyncClient: support updating filter variables. After login, stage updates using put and remove,
+  then schedule to send them to the server with `applyFilterVariables()`.
+* Clients report errors to the server
+* Fix bad Sync client state after multiple full sync messages were interrupted 
+* Fix adding indexes to Sync types
+
+## 5.2.0 (2026-01-28)
+
+* Allow analyzer versions 9 and 10. [#780](https://github.com/objectbox/objectbox-dart/issues/780)
+* Update ObjectBox database for Flutter Linux/Windows, Dart Native apps to [5.1.0-2026-01-19](https://github.com/objectbox/objectbox-c/releases/tag/v5.1.0).
+* Update ObjectBox database for Flutter Android apps to 5.1.0-2026-01-19.
+  If your project is [using Admin](https://docs.objectbox.io/data-browser#admin-for-android), make
+  sure to update to `io.objectbox:objectbox-android-objectbrowser:5.1.0` in 
+  `android/app/build.gradle.kts` or `android/app/build.gradle`.
+* Update ObjectBox database for Flutter iOS/macOS apps to 5.1.1-dev-2026-01-21.
+  For existing projects, run `pod repo update` and `pod update ObjectBox` in the `ios` or `macos` directories.
+
+### Sync
+
+* New Sync protocol V8: using new clients also requires a server update
+* SyncClient: add a constructor, deprecate `Sync.client` and related helper methods.
+* SyncClient: add constructor parameters to provide custom certificates and configuration flags.
+  * Remove-operations with object content for Sync filters (optional setting; sync flag)
+  * Add DebugLogTxLogs sync flag to log TX log processing on the client side 
+  * Add SkipInvalidTxOps sync flag to skip invalid operations in a TX log on the client side; errors
+    are logged and the TX is only partially applied.
+* Remove superfluous sync listener triggers when sync filters "report updates" (SKIP_TX)
+* Sync clients compress earlier: reduces disk storage for outgoing data
+* Reworked certificates for Apple platforms
+* Removed support for older Sync protocol versions before 2024-09; protocol V5+ is now required.
+
+## 5.1.0 (2025-12-18)
+
+* Added flex properties that can hold any kind of data ("schema-less") supporting the following types on the Dart side:
+  * Maps: JSON-like data structure with string keys and arbitrary values, including nested maps and lists.
+  * Lists: can hold elements of any type, even mixed (like JSON arrays).
+    On the Dart side, ObjectBox also offers binding to a list of maps, e.g. `List<Map<String, dynamic>>`.
+  * Dynamic/Object: can hold any kind of data, including primitive types like integer, floating point and string,
+    plus maps and lists.
+  * Sync note: when used together with the MongoDB Connector,
+    flex properties allow storing nested documents from MongoDB
+* Added `dateUtc` and `dateUtcNano` property types for DateTime read back UTC.
+  [#308](https://github.com/objectbox/objectbox-dart/issues/308)
+* Added "GeneratorVersion" enum to enforce generated code is compatible with the runtime library.
+  **You must run `dart run build_runner build` after updating the objectbox package.**
+  Until you regenerate code, compiling will fail with a message like this:
+  "Error: Required named parameter 'generatorVersion' must be provided".
+
+## 5.0.4 (2025-12-09)
+
+* Update ObjectBox database for Flutter iOS/macOS apps to 5.1.1.
+  For existing projects, run `pod repo update` and `pod update ObjectBox` in the `ios` or `macos` directories.
+  * Sync client: fix for encrypted (`wss://`) connections on iOS devices.
+
+## 5.0.3 (2025-12-03)
+
+* Update ObjectBox database for Flutter Linux/Windows, Dart Native apps to [5.0.0](https://github.com/objectbox/objectbox-c/releases/tag/v5.0.0).
+* Update ObjectBox database for Flutter iOS/macOS apps to 5.1.0.
+  Requires macOS 11 or iOS 15 and at least Swift 6.1 tools to compile.
+  For existing projects, run `pod repo update` and `pod update ObjectBox` in the `ios` or `macos` directories.
+
+## 5.0.2 (2025-11-10)
+
+* macOS: throw an error if the `macosApplicationGroup` parameter when opening a `Store` is too long
+  (or empty). [#515](https://github.com/objectbox/objectbox-dart/issues/515#issuecomment-3503022269)
+
+### Sync
+
+* SyncClient: actually configure Sync filters when passing them to `Sync.client` and related helper
+  methods.
+
+## 5.0.1 (2025-10-29)
+
+* Generator: migrate to `analyzer` 8 APIs. Require at least `analyzer` 8.1.1 and `source_gen` 4.0.1.
+  Resolves `Error: The method 'getInvocation' isn't defined` when running the generator using 
+  `analyzer` 8.4.0 (it removes APIs that older `source_gen` versions were using).
+* Generator: require at least `build` 4.0.0. This will also allow using `build_runner` versions
+  `2.7.2` or newer. [#759](https://github.com/objectbox/objectbox-dart/issues/759)
+* For `ToOne` support renaming the implicitly created target ID (or "relation") property:
+
+  ```dart 
+  // Change target ID property name from default "customerId" to "customerRef"
+  @TargetIdProperty('customerRef')
+  final customer = ToOne<Customer>();
+  ```
+  
+  This can be useful if the default name needs to be used for another property. Or when syncing with
+  MongoDB to match the name used in the MongoDB database. [#713](https://github.com/objectbox/objectbox-dart/issues/713)
+* Provide a helpful error message if the name of a property conflicts with a target ID property 
+  created for a `ToOne` relation. [#713](https://github.com/objectbox/objectbox-dart/issues/713)
+* Generator: find `@Backlink()` source relation also in case target entity class is processed first.
+  [#687](https://github.com/objectbox/objectbox-dart/issues/687)
+
+### Sync
+
+* SyncClient: support `triggerReconnect()`.
+
+## 5.0.0 (2025-10-01)
+
+**To upgrade to this major release** run `flutter pub upgrade objectbox --major-versions`
+(or for Dart Native apps `dart pub upgrade objectbox --major-versions`).
+
+### Sync
+
+* Support Sync server version 5.0.
+  * **User-Specific Data Sync**: support configuring [Sync filter](https://sync.objectbox.io/sync-server/sync-filters)
+    variables on `SyncClient`.
+
+### Other Changes
+
+* Flutter packages are compiled with Android SDK 35 to support Android Gradle Plugin 8.13 
+  [#755](https://github.com/objectbox/objectbox-dart/issues/755). They are also built using a
+  language level of Java 11.
+* Update ObjectBox database for Flutter Linux/Windows, Dart Native apps to [5.0.0-rc](https://github.com/objectbox/objectbox-c/releases/tag/v5.0.0-rc).
+  * ToOne relations: when deleting an object with an ID larger than the maximum 32-bit unsigned
+    integer (`4_294_967_295`) that is used as the target object of a ToOne, correctly re-set the
+    target ID of the ToOne to `0`. [#740](https://github.com/objectbox/objectbox-dart/issues/740)
+* Update ObjectBox database for Flutter Android apps to 5.0.1.
+  If your project is [using Admin](https://docs.objectbox.io/data-browser#admin-for-android), make
+  sure to update to `io.objectbox:objectbox-android-objectbrowser:5.0.1` in `android/app/build.gradle`.
+* Update ObjectBox database for Flutter iOS/macOS apps to 5.0.0.
+  For existing projects, run `pod repo update` and `pod update ObjectBox` in the `ios` or `macos` directories.
+* Remove deprecated `contains` condition for `List<String>` properties, use `containsElement` instead.
+
+## 4.3.1 (2025-09-02)
+
+* Requires at least Dart SDK 3.7 or Flutter SDK 3.29.
+* Migrate generator to analyzer 7.4 and source_gen 3.1 APIs. Allow analyzer version 8. [#742](https://github.com/objectbox/objectbox-dart/issues/742)
+* Update ObjectBox database for Flutter Linux/Windows, Dart Native apps to [4.3.1](https://github.com/objectbox/objectbox-c/releases/tag/v4.3.1).
+* Update ObjectBox database for Flutter Android apps to 4.3.1.
+  If your project is [using Admin](https://docs.objectbox.io/data-browser#admin-for-android), make
+  sure to update to `io.objectbox:objectbox-android-objectbrowser:4.3.1` in `android/app/build.gradle`.
+  * Admin for Android: do not display values twice. [#738](https://github.com/objectbox/objectbox-dart/issues/738)
+* Update ObjectBox database for Flutter iOS/macOS apps to 4.3.1.
+  For existing projects, run `pod repo update` and `pod update ObjectBox` in the `ios` or `macos` directories.
+
 ## 4.3.0 (2025-05-28)
 
 * Update ObjectBox database for Flutter Linux/Windows, Dart Native apps to [4.3.0](https://github.com/objectbox/objectbox-c/releases/tag/v4.3.0).

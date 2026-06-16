@@ -707,7 +707,7 @@ class InternalBoxAccess {
             cIdsPtr =
                 C.box_rel_get_backlink_ids(box._ptr, rel.id, rel.objectId);
             break;
-          }
+        }
         checkObxPtr(cIdsPtr);
         final result = <EntityT>[];
         try {

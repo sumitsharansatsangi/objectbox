@@ -53,17 +53,22 @@ class ObjectBox {
         directory: p.join((await getApplicationDocumentsDirectory()).path,
             "obx-demo-relations"),
         macosApplicationGroup: "objectbox.demo");
+
+    if (kDebugMode) {
+      debugPrint("Using ObjectBox database version ${Store.databaseVersion()}");
+    }
+
     return ObjectBox._create(store);
   }
 
   void _putDemoData() {
-    Tag tag1 = Tag(name:'work');
-    Tag tag2 = Tag(name:'study');
+    Tag tag1 = Tag('work');
+    Tag tag2 = Tag('study');
 
-    Task task1 = Task(text:'This is a work task.');
+    Task task1 = Task('This is a work task.');
     task1.tag.target = tag1; //set the relation
 
-    Task task2 = Task(text:'This is a study task.');
+    Task task2 = Task('This is a study task.');
     task2.tag.target = tag2;
 
     // When the Task is put, its Tag will automatically be put into the Tag Box.
@@ -94,7 +99,7 @@ class ObjectBox {
     }
     if (task == null) {
       // Add a new task (task id is 0).
-      task = Task(text:text);
+      task = Task(text);
     } else {
       // Update an existing task (task id is > 0).
       task.text = text;
@@ -102,7 +107,9 @@ class ObjectBox {
     // Set or update the target of the to-one relation to Tag.
     task.tag.target = tag;
     _taskBox.putAsync(task);
-    debugPrint('Saved task ${task.text} with tag ${task.tag.target!.name}');
+    if (kDebugMode) {
+      debugPrint('Saved task ${task.text} with tag ${task.tag.target!.name}');
+    }
   }
 
   Future<void> finishTask(Task task) async {
@@ -127,8 +134,10 @@ class ObjectBox {
       }
     }
 
-    final newTagId = await _tagBox.putAsync(Tag(name:name));
-    debugPrint("Added tag: ${_tagBox.get(newTagId)!.name}");
+    final newTagId = await _tagBox.putAsync(Tag(name));
+    if (kDebugMode) {
+      debugPrint("Added tag: ${_tagBox.get(newTagId)!.name}");
+    }
 
     return newTagId;
   }

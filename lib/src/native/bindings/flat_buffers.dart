@@ -185,14 +185,13 @@ class Builder {
     bool internStrings = false,
     Allocator allocator = const DefaultAllocator(),
     this.deduplicateTables = true,
-  })  : _allocator = allocator,
-        _buf = allocator.allocate(initialSize),
-        _vTables = deduplicateTables ? [] : const [] {
+  }) : _allocator = allocator,
+       _buf = allocator.allocate(initialSize),
+       _vTables = deduplicateTables ? [] : const [] {
     if (internStrings) {
       _strings = <String, int>{};
     }
   }
-
 
   /// Calculate the finished buffer size (aligned).
   @pragma('vm:prefer-inline')
@@ -201,7 +200,9 @@ class Builder {
   /// Add the [field] with the given boolean [value].  The field is not added if
   /// the [value] is equal to [def].  Booleans are stored as 8-bit fields with
   /// `0` for `false` and `1` for `true`.
-  void addBool(int field, bool? value, [bool? def]) {
+  // Field writers intentionally use positional field/value pairs.
+  // ignore: avoid_positional_boolean_parameters
+  void addBool(int field, bool? value, {bool? def}) {
     assert(_inVTable);
     if (value != null && value != def) {
       _prepare(_sizeofUint8, 1);
@@ -243,7 +244,7 @@ class Builder {
     }
   }
 
- /// Adds a field to the current struct at the given [offset].
+  /// Adds a field to the current struct at the given [offset].
   ///
   /// This should be called only while inside a vtable context (`_inVTable` must be true).
   /// Tracks the field internally and updates the current vtable with the field's offset.
@@ -255,7 +256,6 @@ class Builder {
     _trackField(field);
     _currentVTable!.addField(field, offset);
   }
-
 
   /// Add the [field] referencing an object with the given [offset].
   void addOffset(int field, int? offset) {
@@ -696,7 +696,8 @@ class Builder {
   }
 
   /// Write the given list of bools as unsigend 8-bit integer [values].
-  int writeListBool(List<bool> values) => writeListUint8(values.map((b) => b ? 1 : 0).toList());
+  int writeListBool(List<bool> values) =>
+      writeListUint8(values.map((b) => b ? 1 : 0).toList());
 
   /// Write the given list of signed 8-bit integer [values].
   int writeListInt8(List<int> values) {
@@ -741,14 +742,14 @@ class Builder {
     if (_strings != null) {
       return _strings!.putIfAbsent(
         value,
-        () => _writeString(value, asciiOptimization),
+        () => _writeString(value, asciiOptimization: asciiOptimization),
       );
     } else {
-      return _writeString(value, asciiOptimization);
+      return _writeString(value, asciiOptimization: asciiOptimization);
     }
   }
 
-  int _writeString(String value, bool asciiOptimization) {
+  int _writeString(String value, {required bool asciiOptimization}) {
     if (asciiOptimization) {
       // [utf8.encode()] is slow (up to at least Dart SDK 2.13). If the given
       // string is ASCII we can just write it directly, without any conversion.
@@ -899,6 +900,7 @@ class Builder {
   void _setUint8AtTail(int tail, int x) =>
       _buf.setUint8(_buf.lengthInBytes - tail, x);
 }
+
 /// Reads a list of boolean values from a FlatBuffer.
 ///
 /// The returned list is unmodifiable and **lazily reads values on access**,
@@ -1007,6 +1009,7 @@ class Float32Reader extends Reader<double> {
   @pragma('vm:prefer-inline')
   double read(BufferContext bc, int offset) => bc._getFloat32(offset);
 }
+
 /// Reads a single signed 64-bit integer from a FlatBuffer.
 class Int64Reader extends Reader<int> {
   /// Creates a const instance of [Int64Reader].
@@ -1164,11 +1167,13 @@ abstract class Reader<T> {
     return object._getUint16(vTableOffset + field);
   }
 }
+
 /// The reader of string values.
 class StringReader extends Reader<String> {
   /// Enables optimization for ASCII strings.
   final bool asciiOptimization;
-/// Creates a const instance of [StringReader].
+
+  /// Creates a const instance of [StringReader].
   const StringReader({this.asciiOptimization = false}) : super();
 
   @override
@@ -1198,6 +1203,7 @@ class StringReader extends Reader<String> {
     return true;
   }
 }
+
 /// An abstract reader for structs.
 ///
 /// A `StructReader` is responsible for reading data structures
@@ -1255,7 +1261,6 @@ abstract class TableReader<T> extends Reader<T> {
     return createObject(bc, objectOffset);
   }
 }
-
 
 /// Reader of lists of unsigned 32-bit integer values.
 ///
@@ -1344,6 +1349,7 @@ class Uint8ListReader extends Reader<List<int>> {
   ///
   /// If false, reads the whole list immediately as an Uint8List.
   final bool lazy;
+
   /// Creates a const instance of [Uint8ListReader].
   const Uint8ListReader({this.lazy = true});
 
@@ -1390,6 +1396,7 @@ class Int8ListReader extends Reader<List<int>> {
   ///
   /// If false, reads the whole list immediately as an Uint8List.
   final bool lazy;
+
   /// Creates a const instance of [Int8ListReader].
   const Int8ListReader({this.lazy = true});
 

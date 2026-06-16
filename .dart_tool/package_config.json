@@ -3,15 +3,15 @@
   "packages": [
     {
       "name": "_fe_analyzer_shared",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/_fe_analyzer_shared-88.0.0",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/_fe_analyzer_shared-103.0.0",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.11"
     },
     {
       "name": "analyzer",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/analyzer-8.1.1",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/analyzer-13.3.0",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.11"
     },
     {
       "name": "args",
@@ -21,7 +21,7 @@
     },
     {
       "name": "async",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/async-2.13.0",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/async-2.13.1",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -57,31 +57,31 @@
     },
     {
       "name": "coverage",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/coverage-1.15.0",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/coverage-1.15.1",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
     {
       "name": "crypto",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/crypto-3.0.6",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/crypto-3.0.7",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
     {
       "name": "dart_style",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/dart_style-3.1.2",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/dart_style-3.1.9",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.10"
     },
     {
       "name": "ffi",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/ffi-2.1.4",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/ffi-2.2.0",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
     {
       "name": "ffigen",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/ffigen-19.1.0",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/ffigen-20.1.1",
       "packageUri": "lib/",
       "languageVersion": "3.8"
     },
@@ -90,6 +90,12 @@
       "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/file-7.0.1",
       "packageUri": "lib/",
       "languageVersion": "3.0"
+    },
+    {
+      "name": "flat_buffers",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/git/flat_buffers-74008f5f080d484c105c3aa4f1c8293fc670f91a/",
+      "packageUri": "lib/",
+      "languageVersion": "3.12"
     },
     {
       "name": "frontend_server_client",
@@ -122,14 +128,8 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "js",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/js-0.7.2",
-      "packageUri": "lib/",
-      "languageVersion": "3.7"
-    },
-    {
       "name": "lints",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/lints-6.0.0",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/lints-6.1.0",
       "packageUri": "lib/",
       "languageVersion": "3.8"
     },
@@ -141,13 +141,13 @@
     },
     {
       "name": "matcher",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/matcher-0.12.17",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/matcher-0.12.20",
       "packageUri": "lib/",
-      "languageVersion": "3.4"
+      "languageVersion": "3.10"
     },
     {
       "name": "meta",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/meta-1.17.0",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/meta-1.18.3",
       "packageUri": "lib/",
       "languageVersion": "3.5"
     },
@@ -177,9 +177,9 @@
     },
     {
       "name": "pool",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/pool-1.5.1",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/pool-1.5.2",
       "packageUri": "lib/",
-      "languageVersion": "2.12"
+      "languageVersion": "3.4"
     },
     {
       "name": "pub_semver",
@@ -231,7 +231,7 @@
     },
     {
       "name": "source_span",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/source_span-1.10.1",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/source_span-1.10.2",
       "packageUri": "lib/",
       "languageVersion": "3.1"
     },
@@ -261,21 +261,21 @@
     },
     {
       "name": "test",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/test-1.26.3",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/test-1.31.1",
       "packageUri": "lib/",
-      "languageVersion": "3.5"
+      "languageVersion": "3.10"
     },
     {
       "name": "test_api",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/test_api-0.7.7",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/test_api-0.7.12",
       "packageUri": "lib/",
-      "languageVersion": "3.5"
+      "languageVersion": "3.10"
     },
     {
       "name": "test_core",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/test_core-0.6.12",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/test_core-0.6.18",
       "packageUri": "lib/",
-      "languageVersion": "3.5"
+      "languageVersion": "3.10"
     },
     {
       "name": "typed_data",
@@ -285,15 +285,15 @@
     },
     {
       "name": "vm_service",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/vm_service-15.0.2",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/vm_service-15.2.0",
       "packageUri": "lib/",
       "languageVersion": "3.5"
     },
     {
       "name": "watcher",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/watcher-1.1.2",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/watcher-1.2.1",
       "packageUri": "lib/",
-      "languageVersion": "3.1"
+      "languageVersion": "3.4"
     },
     {
       "name": "web",
@@ -327,7 +327,7 @@
     },
     {
       "name": "yaml_edit",
-      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/yaml_edit-2.2.2",
+      "rootUri": "file:///Users/amitsharan/.pub-cache/hosted/pub.dev/yaml_edit-2.2.4",
       "packageUri": "lib/",
       "languageVersion": "3.1"
     },
@@ -335,12 +335,12 @@
       "name": "objectbox",
       "rootUri": "../",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.12"
     }
   ],
   "generator": "pub",
-  "generatorVersion": "3.9.0",
-  "flutterRoot": "file:///Users/amitsharan/development/flutter",
-  "flutterVersion": "3.35.1",
+  "generatorVersion": "3.12.2",
+  "flutterRoot": "file:///Users/amitsharan/.shorebird/bin/cache/flutter/65b1e4368e98a85ea11e8ef2cffc286c3b2ad8b2",
+  "flutterVersion": "3.44.2",
   "pubCache": "file:///Users/amitsharan/.pub-cache"
 }

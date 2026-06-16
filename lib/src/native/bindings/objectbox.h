@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2025 ObjectBox Ltd. All rights reserved.
+ * Copyright 2018-2026 ObjectBox Ltd. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,9 +51,9 @@ extern "C" {
 
 /// When using ObjectBox as a dynamic library, you should verify that a compatible version was linked using
 /// obx_version() or obx_version_is_at_least().
-#define OBX_VERSION_MAJOR 4
+#define OBX_VERSION_MAJOR 5
 #define OBX_VERSION_MINOR 3
-#define OBX_VERSION_PATCH 0  // values >= 100 are reserved for dev releases leading to the next minor/major increase
+#define OBX_VERSION_PATCH 2  // values >= 100 are reserved for dev releases leading to the next minor/major increase
 
 //----------------------------------------------
 // Common types
@@ -112,6 +112,11 @@ OBX_C_API bool obx_version_is_at_least(int major, int minor, int patch);
 /// Thus, only use for information purposes.
 /// @see obx_version() and obx_version_is_at_least() for integer based versions
 OBX_C_API const char* obx_version_string(void);
+
+/// Return the (runtime) version of the library to be printed.
+/// The format is "YYYY-MM-DD" (e.g. "2026-02-16") and thus can be compared lexicographically.
+/// @see obx_version() and obx_version_is_at_least() for integer based versions.
+OBX_C_API const char* obx_version_date_string(void);
 
 /// Return the version of the ObjectBox core to be printed (currently also contains a version date and features).
 /// The format may change in any future release; only use for information purposes.
@@ -176,6 +181,12 @@ typedef enum {
     /// Enables additional authentication/authorization methods for sync login, e.g. JWT based methods.
     OBXFeature_Auth = 17,
 
+    /// This is a free trial version; only applies to server builds (no trial builds for database and Sync clients).
+    OBXFeature_Trial = 18,
+
+    /// Server-side filters to return individual data for each sync user (user-specific data).
+    OBXFeature_SyncFilters = 19,
+
 } OBXFeature;
 
 /// Checks whether the given feature is available in the currently loaded library.
@@ -185,22 +196,18 @@ OBX_C_API bool obx_has_feature(OBXFeature feature);
 // Utilities
 //----------------------------------------------
 
-/// Log level as passed to obx_log_callback.
+/// Log level used by obx_log_level_set(), obx_log_level_get(), and obx_log_callback().
+/// @note Values were changed in version 5.3 (previously 10/20/30/40/50 for Verbose..Error);
+///       update your code if you relied on the old numeric values.
 typedef enum {
-    /// Log level for verbose messages (not emitted at the moment)
-    OBXLogLevel_Verbose = 10,
-
-    /// Log level for debug messages (may be limited to special debug builds)
-    OBXLogLevel_Debug = 20,
-
-    /// Log level for info messages
-    OBXLogLevel_Info = 30,
-
-    /// Log level for warning messages
-    OBXLogLevel_Warn = 40,
-
-    /// Log level for error messages
-    OBXLogLevel_Error = 50,
+    OBXLogLevel_All = 0,      ///< Enable all log output.
+    OBXLogLevel_Trace = 1,    ///< Most detailed; typically only for short-term investigations.
+    OBXLogLevel_Verbose = 2,  ///< Very detailed; not printed by default.
+    OBXLogLevel_Debug = 3,    ///< Detailed output useful during development/debugging.
+    OBXLogLevel_Info = 4,     ///< Informational messages (default for release builds).
+    OBXLogLevel_Warn = 6,     ///< Noteworthy issues that are not necessarily errors.
+    OBXLogLevel_Error = 8,    ///< Only for "bad things happened" (e.g. internal errors).
+    OBXLogLevel_None = 10,    ///< Disable all log output.
 } OBXLogLevel;
 
 /// Callback for logging, which can be provided to store creation via options.
@@ -218,12 +225,26 @@ OBX_C_API size_t obx_db_file_size(char const* directory);
 /// Enable (or disable) debug logging for ObjectBox internals.
 /// This requires a version of the library with the DebugLog feature.
 /// You can check if the feature is available with obx_has_feature(OBXFeature_DebugLog).
+/// @Deprecated: prefer obx_log_level_set() with OBXLogLevel_Debug / OBXLogLevel_Info.
 OBX_C_API obx_err obx_debug_log(bool enabled);
 
-/// Checks if debug logs are enabled for ObjectBox internals. This depends on the availability of the DebugLog feature.
+/// Checks if debug logs are enabled for ObjectBox internals.
+/// This depends on the availability of the DebugLog feature.
 /// If the feature is available, it returns the current state, which is adjustable via obx_debug_log().
-/// Otherwise, it always returns false for standard release builds (or true if you are having a special debug version).
+/// Otherwise, it always returns false for standard release builds
+/// (or true if you are having a special debug version).
+/// @Deprecated: Prefer obx_log_level_get() and compare against OBXLogLevel_Debug.
 OBX_C_API bool obx_debug_log_enabled();
+
+/// Sets the runtime log level for ObjectBox internals.
+/// Log messages below the given level will not be printed (provided they are compiled into the library).
+/// @note Without the DebugLog feature, log messages at debug level and below are not compiled in;
+///       use obx_has_feature(OBXFeature_DebugLog) to check.
+OBX_C_API obx_err obx_log_level_set(OBXLogLevel log_level);
+
+/// Gets the current runtime log level for ObjectBox internals.
+/// @returns One of the OBXLogLevel values.
+OBX_C_API OBXLogLevel obx_log_level_get();
 
 /// Gets the number, as used by ObjectBox, of the current thread.
 /// This e.g. allows to "associate" the thread with ObjectBox logs (each log entry contains the thread number).
@@ -613,6 +634,21 @@ typedef enum {
     /// If a date property has this flag (max. one per entity type), the date value specifies the time by which
     /// the object expires, at which point it MAY be removed (deleted), which can be triggered by an API call.
     OBXPropertyFlags_EXPIRATION_TIME = 65536,
+
+    /// Marks a Long (64-bit integer) property as the sync clock, a "hybrid logical clock" to resolve Sync conflicts.
+    /// These clock values allow "last write wins" conflict resolution.
+    /// There can be only one sync clock per sync entity type; which is also recommended for basic conflict resolution.
+    /// For new objects, initialize a property value to 0 to reserve "a slot" in the object data.
+    /// ObjectBox Sync will update this property automatically on put operations.
+    /// As a hybrid clock, it combines a wall clock with a logical counter to compensate for some clock skew effects.
+    OBXPropertyFlags_SYNC_CLOCK = 131072,
+
+    /// Marks a Long (64-bit integer) property as the "sync precedence" to customize Sync conflict resolution.
+    /// Developer-assigned precedence values are then used to resolve conflicts via "higher precedence wins".
+    /// Defining and assigning precedence values are completely in the hands of the developer (the ObjectBox user).
+    /// There can be only one sync precedence per sync entity type.
+    /// Typically, it is combined with a sync clock, with the latter being the tie-breaker for equal precedence values.
+    OBXPropertyFlags_SYNC_PRECEDENCE = 262144,
 } OBXPropertyFlags;
 
 /// A property type of an external system (e.g. another database) that has no default mapping to an ObjectBox type.
@@ -782,15 +818,13 @@ OBX_C_API obx_err obx_model_property_index_id(OBX_model* model, obx_schema_id in
 
 /// Refine the definition of the property declared by the most recent obx_model_property() call: set the external name.
 /// This is an optional name used in an external system, e.g. another database that ObjectBox syncs with.
-/// @param index_id Must be unique within this version of the model
-/// @param index_uid Used to identify relations between versions of the model. Must be globally unique.
+/// @param external_name The name of the property in the external system.
 OBX_C_API obx_err obx_model_property_external_name(OBX_model* model, const char* external_name);
 
 /// Refine the definition of the property declared by the most recent obx_model_property() call: set the external type.
 /// This is an optional type used in an external system, e.g. another database that ObjectBox syncs with.
 /// Note that the supported mappings from ObjectBox types to external types are limited.
-/// @param index_id Must be unique within this version of the model
-/// @param index_uid Used to identify relations between versions of the model. Must be globally unique.
+/// @param external_type The type of the property in the external system.
 OBX_C_API obx_err obx_model_property_external_type(OBX_model* model, OBXExternalPropertyType external_type);
 
 /// Sets the vector dimensionality for the HNSW index of the latest property (must be of a supported vector type).
@@ -1301,7 +1335,7 @@ OBX_C_API OBX_store* obx_store_attach(const char* path);
 /// Attach to a previously opened store matching the given store ID.
 /// The returned store is a new instance (e.g. different pointer value) and must also be closed via obx_store_close().
 /// The actual underlying store is only closed when the last store OBX_store instance is closed.
-/// @param store_id
+/// @param store_id The ID previously obtained from a store.
 /// @returns nullptr if no open store was found (i.e. not opened before or already closed)
 /// @see obx_store_clone() for "attaching" to a available store instance.
 OBX_C_API OBX_store* obx_store_attach_id(uint64_t store_id);
@@ -1576,10 +1610,18 @@ OBX_C_API OBX_bytes_array* obx_cursor_backlinks(OBX_cursor* cursor, obx_schema_i
 OBX_C_API OBX_id_array* obx_cursor_backlink_ids(OBX_cursor* cursor, obx_schema_id entity_id, obx_schema_id property_id,
                                                 obx_id id);
 
+/// Puts a standalone (many-to-many) relation instance to "connect" two objects.
+/// @warning Ensure that the source and target IDs are pointing to actually existing objects.
+///          Failing to do so may result in subtle errors.
+///          For example, a known problem is that sync filters always filter out relations that have no valid objects.
+/// @note It's called a "standalone" relation because the relation data is stored separately of object data.
 OBX_C_API obx_err obx_cursor_rel_put(OBX_cursor* cursor, obx_schema_id relation_id, obx_id source_id, obx_id target_id);
+
+/// Removes a standalone (many-to-many) relation instance to "disconnect" two objects.
 OBX_C_API obx_err obx_cursor_rel_remove(OBX_cursor* cursor, obx_schema_id relation_id, obx_id source_id,
                                         obx_id target_id);
 
+/// Gets the standalone (many-to-many) relation instance for the given source ID (the "connections" to other objects).
 /// @returns NULL if the operation failed, see functions like obx_last_error_code() to get error details
 OBX_C_API OBX_id_array* obx_cursor_rel_ids(OBX_cursor* cursor, obx_schema_id relation_id, obx_id source_id);
 
@@ -2117,7 +2159,7 @@ OBX_C_API obx_qb_cond obx_qb_less_or_equal_string(OBX_query_builder* builder, ob
 OBX_C_API obx_qb_cond obx_qb_in_strings(OBX_query_builder* builder, obx_schema_id property_id,
                                         const char* const values[], size_t count, bool case_sensitive);
 
-/// For OBXPropertyType_StringVector - matches if at least one vector item equals the given value.
+/// @deprecated Please use obx_qb_contains_element_string() instead.
 OBX_C_API obx_qb_cond obx_qb_any_equals_string(OBX_query_builder* builder, obx_schema_id property_id, const char* value,
                                                bool case_sensitive);
 
@@ -2272,6 +2314,8 @@ struct OBX_query;  // doxygen (only) picks up the typedef struct below
 /// you may want to create clonse using obx_query_clone().
 typedef struct OBX_query OBX_query;
 
+/// Builds a query from the given query builder (with the query conditions previously called on the query builder).
+/// Note: this does not release the query builder, you still need to call obx_qb_close() on it.
 /// @returns NULL if the operation failed, see functions like obx_last_error_code() to get error details
 OBX_C_API OBX_query* obx_query(OBX_query_builder* builder);
 

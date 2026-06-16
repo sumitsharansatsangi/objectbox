@@ -12,7 +12,11 @@ import 'bindings/bindings.dart';
 import 'bindings/helpers.dart';
 import 'store.dart';
 
-/// Credentials used to authenticate a sync client against a server.
+/// Credentials used to authenticate a [SyncClient] against an ObjectBox Sync
+/// Server.
+///
+/// Use one of the factory methods to create credentials matching your server
+/// configuration.
 class SyncCredentials {
   final int _type;
 
@@ -22,21 +26,25 @@ class SyncCredentials {
   /// configured to accept all connections without authentication.
   static SyncCredentials none() => _SyncCredentialsNone._();
 
-  /// Shared secret authentication.
+  /// Shared secret authentication using raw bytes.
+  ///
+  /// The secret must be pre-shared with the server.
   static SyncCredentials sharedSecretUint8List(Uint8List data) =>
       SyncCredentialsSecret._(
           OBXSyncCredentialsType.SHARED_SECRET_SIPPED, data);
 
-  /// Shared secret authentication.
+  /// Shared secret authentication using a string.
+  ///
+  /// The secret must be pre-shared with the server.
   static SyncCredentials sharedSecretString(String data) =>
       SyncCredentialsSecret._encode(
           OBXSyncCredentialsType.SHARED_SECRET_SIPPED, data);
 
-  /// Google authentication.
+  /// Google authentication using the ID token as raw bytes.
   static SyncCredentials googleAuthUint8List(Uint8List data) =>
       SyncCredentialsSecret._(OBXSyncCredentialsType.GOOGLE_AUTH, data);
 
-  /// Google authentication.
+  /// Google authentication using the ID token as a string.
   static SyncCredentials googleAuthString(String data) =>
       SyncCredentialsSecret._encode(OBXSyncCredentialsType.GOOGLE_AUTH, data);
 
@@ -150,15 +158,18 @@ enum SyncLoginEvent {
   /// Client has successfully logged in to the server.
   loggedIn,
 
-  /// Client's credentials has been rejectd by the server.
+  /// Client's credentials have been rejected by the server.
   /// Connection will NOT be retried until new credentials are provided.
   credentialsRejected,
 
-  /// An unknown error occured during authentication.
+  /// An unknown error occurred during authentication.
   unknownError
 }
 
-/// Sync incoming data event.
+/// Represents a set of changes received from the Sync server for a single
+/// entity type.
+///
+/// Received via [SyncClient.changeEvents].
 class SyncChange {
   /// Entity ID this change relates to.
   final int entityId;
@@ -175,8 +186,7 @@ class SyncChange {
   SyncChange._(this.entityId, this.entity, this.puts, this.removals);
 }
 
-/// Sync client is used to connect to an ObjectBox sync server.
-/// Use through [Sync].
+/// A Sync client is used to connect to an ObjectBox Sync server.
 class SyncClient {
   final Store _store;
 
@@ -189,12 +199,66 @@ class SyncClient {
       : throw StateError('SyncClient already closed');
 
   /// Creates a Sync client associated with the given store and options.
-  /// This does not initiate any connection attempts yet: call start() to do so.
-  SyncClient._(
-      this._store, List<String> serverUrls, List<SyncCredentials> credentials) {
-    if (serverUrls.isEmpty) {
-      throw ArgumentError.value(
-          serverUrls, "serverUrls", "Provide at least one server URL");
+  /// This does not initiate any connection attempts yet, call [start] to do so.
+  ///
+  /// A minimal setup can look like this:
+  ///
+  /// ```dart
+  /// // Connect to a test server running on localhost using
+  /// // an unencrypted connection without authentication
+  /// SyncClient client =
+  ///     SyncClient(store, ['ws://127.0.0.1:9999'], [SyncCredentials.none()]);
+  /// client.start(); // connect and start syncing
+  /// ```
+  ///
+  /// By default, a Sync client automatically receives updates from the server
+  /// once login succeeded. To configure this differently, call
+  /// [setRequestUpdatesMode] with the wanted mode.
+  ///
+  /// ## Server URLs
+  ///
+  /// The Sync server URL is typically a WebSockets URL starting with `ws://` or
+  /// `wss://` (for encrypted connections), for example if the server is running
+  /// on localhost `ws://127.0.0.1:9999`.
+  ///
+  /// Passing multiple URLs allows high availability and load balancing (like
+  /// when using an ObjectBox Sync Server Cluster). A random URL is selected for
+  /// each connection attempt.
+  ///
+  /// ## Credentials
+  ///
+  /// Use the [SyncCredentials] factory methods to create credentials, for
+  /// example `SyncCredentials.jwtIdToken(idToken)`. The accepted credentials
+  /// types depend on your Sync server configuration.
+  ///
+  /// When passing multiple credentials, can't include [SyncCredentials.none].
+  ///
+  /// ## Sync filter client variables
+  ///
+  /// To configure [Sync filter](https://sync.objectbox.io/sync-server/sync-filters)
+  /// variables, pass variable names mapped to their value to [filterVariables].
+  ///
+  /// Sync client filter variables can be used in server-side Sync filters to
+  /// filter out objects that do not match the filter.
+  ///
+  /// ## Sync Flags
+  ///
+  /// To adjust the behavior of the sync client, pass [OBXSyncFlags] to [flags].
+  /// These flags can be combined using bitwise OR to enable multiple options at
+  /// once.
+  ///
+  /// ## Custom Certificates
+  ///
+  /// For encrypted connections, for use cases like self-signed certificates in
+  /// a local development environment or custom CAs, pass certificate paths
+  /// referring to the local file system to [certificatePaths].
+  SyncClient(
+      this._store, List<String> serverUrls, List<SyncCredentials> credentials,
+      {Map<String, String>? filterVariables,
+      List<String>? certificatePaths,
+      int? flags}) {
+    if (syncClientsStorage.containsKey(_store)) {
+      throw StateError('Only one sync client can be active for a store');
     }
 
     if (!Sync.isAvailable()) {
@@ -203,11 +267,40 @@ class SyncClient {
           'Please visit https://objectbox.io/sync/ for options.');
     }
 
-    _cSync = withNativeStrings(
-        serverUrls,
-        (ptr, size) => checkObxPtr(
-            C.sync_urls(InternalStoreAccess.ptr(_store), ptr, size),
-            'failed to create Sync client'));
+    // Build options
+    final options = checkObxPtr(C.sync_opt(InternalStoreAccess.ptr(_store)),
+        'failed to create Sync options');
+    try {
+      for (final url in serverUrls) {
+        withNativeString(url, (urlCStr) {
+          checkObx(C.sync_opt_add_url(options, urlCStr));
+        });
+      }
+
+      if (certificatePaths != null) {
+        for (final certPath in certificatePaths) {
+          withNativeString(certPath, (certPathCStr) {
+            checkObx(C.sync_opt_add_cert_path(options, certPathCStr));
+          });
+        }
+      }
+
+      // Note: 0 or invalid flags are ignored by sync_opt_flags
+      if (flags != null) {
+        checkObx(C.sync_opt_flags(options, flags));
+      }
+    } catch (e) {
+      // Free the options if any option method call failed (like due to invalid
+      // arguments).
+      C.sync_opt_free(options);
+      rethrow;
+    }
+
+    // Create Sync client with options (options are freed by sync_create)
+    _cSync =
+        checkObxPtr(C.sync_create(options), 'failed to create Sync client');
+
+    filterVariables?.forEach(putFilterVariable);
 
     if (credentials.length == 1) {
       setCredentials(credentials[0]);
@@ -215,6 +308,9 @@ class SyncClient {
       // also covers the length == 0 case
       setMultipleCredentials(credentials);
     }
+
+    syncClientsStorage[_store] = this;
+    InternalStoreAccess.addCloseListener(_store, this, close);
   }
 
   /// Closes and cleans up all resources used by this sync client.
@@ -234,6 +330,13 @@ class SyncClient {
 
   /// Returns if this sync client is closed and can no longer be used.
   bool isClosed() => _cSync.address == 0;
+
+  /// Returns the protocol version this client uses.
+  static int protocolVersion() => C.sync_protocol_version();
+
+  /// Returns the protocol version of the server after a connection is
+  /// established (or attempted), zero otherwise.
+  int protocolVersionServer() => C.sync_protocol_version_server(_ptr);
 
   /// Gets the current sync client state.
   SyncState state() {
@@ -258,7 +361,76 @@ class SyncClient {
     }
   }
 
-  /// Configure authentication credentials, depending on your server config.
+  /// Adds or replaces a [Sync filter](https://sync.objectbox.io/sync-server/sync-filters)
+  /// variable value for the given name.
+  ///
+  /// Note: If the client is already logged in, this change is not applied until
+  /// [applyFilterVariables] is called. This allows to put or remove multiple
+  /// variables before applying all changes. Filter variables set before login
+  /// (before calling [start]) are automatically applied.
+  ///
+  /// Eventually, existing values for the same name are replaced.
+  ///
+  /// Sync client filter variables can be used in server-side Sync filters to
+  /// filter out objects that do not match the filter.
+  ///
+  /// See also [removeFilterVariable], [removeAllFilterVariables] and
+  /// [applyFilterVariables].
+  void putFilterVariable(String name, String value) {
+    withNativeString(
+        name,
+        (nameCStr) => withNativeString(
+            value,
+            (valueCStr) => checkObx(
+                C.sync_filter_variables_put(_ptr, nameCStr, valueCStr))));
+  }
+
+  /// Removes a previously added Sync filter variable value.
+  ///
+  /// Note: If the client is already logged in, this change is not applied until
+  /// [applyFilterVariables] is called. See [putFilterVariable] for details.
+  ///
+  /// See also [putFilterVariable] and [removeAllFilterVariables].
+  void removeFilterVariable(String name) {
+    withNativeString(name,
+        (nameCStr) => checkObx(C.sync_filter_variables_remove(_ptr, nameCStr)));
+  }
+
+  /// Removes all previously added Sync filter variable values.
+  ///
+  /// Note: If the client is already logged in, this change is not applied until
+  /// [applyFilterVariables] is called. See [putFilterVariable] for details.
+  ///
+  /// See also [putFilterVariable] and [removeFilterVariable].
+  void removeAllFilterVariables() {
+    checkObx(C.sync_filter_variables_remove_all(_ptr));
+  }
+
+  /// Applies all pending Sync filter variable updates (from [putFilterVariable]
+  /// and [removeFilterVariable] calls).
+  ///
+  /// If the client is connected, sends the updated variables to the server.
+  /// If the client is not connected, the updated variables will be included in
+  /// the next login message.
+  ///
+  /// See also [putFilterVariable], [removeFilterVariable] and
+  /// [removeAllFilterVariables].
+  void applyFilterVariables() {
+    checkObx(C.sync_filter_variables_apply(_ptr));
+  }
+
+  /// Sets credentials to authenticate the client with the server.
+  ///
+  /// Any credentials that were set before are replaced.
+  ///
+  /// Usually, credentials are passed via the constructor, but this can be used
+  /// to update them later, such as when a token expires.
+  ///
+  /// Use the [SyncCredentials] factory methods to create credentials, for
+  /// example `SyncCredentials.jwtIdToken(idToken)`. The accepted credentials
+  /// type depends on your Sync server configuration.
+  ///
+  /// To pass multiple credentials, use [setMultipleCredentials] instead.
   void setCredentials(SyncCredentials creds) {
     if (creds is _SyncCredentialsNone) {
       checkObx(C.sync_credentials(_ptr, creds._type, nullptr, 0));
@@ -277,13 +449,13 @@ class SyncClient {
     }
   }
 
-  /// Like [setCredentials], but accepts multiple credentials.
+  /// Like [setCredentials], but accepts a list of credentials.
   ///
-  /// However, does **not** support [SyncCredentials.none()].
+  /// However, does **not** support [SyncCredentials.none].
   void setMultipleCredentials(List<SyncCredentials> credentials) {
     if (credentials.isEmpty) {
       throw ArgumentError.value(
-          credentials, "credentials", "Provide at least one credential");
+          credentials, "credentials", "Credentials must be provided");
     }
 
     var length = credentials.length;
@@ -325,8 +497,12 @@ class SyncClient {
     }
   }
 
-  /// Configures how sync updates are received from the server. If automatic
-  /// updates are turned off, they will need to be requested manually.
+  /// Configures how sync updates are received from the server.
+  ///
+  /// If automatic updates are turned off, they will need to be requested
+  /// manually using [requestUpdates].
+  ///
+  /// Must be called before [start].
   void setRequestUpdatesMode(SyncRequestUpdatesMode mode) {
     int cMode;
     switch (mode) {
@@ -339,7 +515,7 @@ class SyncClient {
       case SyncRequestUpdatesMode.autoNoPushes:
         cMode = OBXRequestUpdatesMode.AUTO_NO_PUSHES;
         break;
-      }
+    }
     checkObx(C.sync_request_updates_mode(_ptr, cMode));
   }
 
@@ -356,30 +532,47 @@ class SyncClient {
     checkObx(C.sync_start(_ptr));
   }
 
-  /// Stops this sync client. Does nothing if it is already stopped.
+  /// Stops this sync client and closes the connection to the server.
+  ///
+  /// Does nothing if already stopped. Can be [start]ed again.
+  /// Use [close] to fully release resources when done with the client.
   void stop() {
     checkObx(C.sync_stop(_ptr));
   }
 
-  /// Request updates since we last synchronized our database.
+  /// Triggers a reconnection attempt immediately. Returns if a reconnect was
+  /// actually triggered.
   ///
-  /// Additionally, you can subscribe for future pushes from the server, to let
-  /// it send us future updates as they come in.
-  /// Call [cancelUpdates()] to stop the updates.
+  /// By default, an increasing backoff interval is used for reconnection
+  /// attempts. But sometimes the code using this API has additional knowledge
+  /// and can initiate a reconnection attempt sooner.
+  bool triggerReconnect() => checkObxSuccess(C.sync_trigger_reconnect(_ptr));
+
+  /// Requests updates from the server since we last synchronized.
+  ///
+  /// Set [subscribeForFuturePushes] to `true` to also subscribe for future
+  /// updates as they come in. Call [cancelUpdates] to stop receiving updates.
+  ///
+  /// Returns `true` if the request was likely sent (client is logged in).
   bool requestUpdates({required bool subscribeForFuturePushes}) =>
       checkObxSuccess(C.sync_updates_request(_ptr, subscribeForFuturePushes));
 
-  /// Cancel updates from the server so that it will stop sending updates.
-  /// See also [requestUpdates()].
+  /// Cancels updates from the server so that it will stop sending updates.
+  ///
+  /// Returns `true` if the request was likely sent (client is logged in).
+  /// See also [requestUpdates].
   bool cancelUpdates() => checkObxSuccess(C.sync_updates_cancel(_ptr));
 
   /// Count the number of messages in the outgoing queue, i.e. those waiting to
   /// be sent to the server.
   ///
-  /// Note: This calls uses a (read) transaction internally:
+  /// By default, counts all messages without any limitation. For a lower number
+  /// pass a [limit] that's enough for your app logic.
+  ///
+  /// Note: This call uses a (read) transaction internally:
   ///   1) It's not just a "cheap" return of a single number. While this will
   ///      still be fast, avoid calling this function excessively.
-  ///   2) the result follows transaction view semantics, thus it may not always
+  ///   2) The result follows transaction view semantics, thus it may not always
   ///      match the actual value.
   int outgoingMessageCount({int limit = 0}) {
     final count = malloc<Uint64>();
@@ -393,9 +586,10 @@ class SyncClient {
 
   _SyncListenerGroup<SyncConnectionEvent>? _connectionEvents;
 
-  /// Get a broadcast stream of connection state changes (connect/disconnect).
+  /// A broadcast stream of connection state changes (connect/disconnect).
   ///
-  /// Subscribe (listen) to the stream to actually start listening to events.
+  /// Subscribe (listen) to the stream to start receiving events.
+  /// Cancel the subscription when no longer needed to free resources.
   Stream<SyncConnectionEvent> get connectionEvents {
     if (_connectionEvents == null) {
       // Combine events from two C listeners: connect & disconnect.
@@ -420,9 +614,10 @@ class SyncClient {
 
   _SyncListenerGroup<SyncLoginEvent>? _loginEvents;
 
-  /// Get a broadcast stream of login events (success/failure).
+  /// A broadcast stream of login events (success/failure).
   ///
-  /// Subscribe (listen) to the stream to actually start listening to events.
+  /// Subscribe (listen) to the stream to start receiving events.
+  /// Cancel the subscription when no longer needed to free resources.
   Stream<SyncLoginEvent> get loginEvents {
     if (_loginEvents == null) {
       // Combine events from two C listeners: login & login-failure.
@@ -452,10 +647,13 @@ class SyncClient {
 
   _SyncListenerGroup<void>? _completionEvents;
 
-  /// Get a broadcast stream of sync completion events - when synchronization
-  /// of incoming changes has completed.
+  /// A broadcast stream of sync completion events.
   ///
-  /// Subscribe (listen) to the stream to actually start listening to events.
+  /// Emitted when synchronization of incoming changes has completed and the
+  /// client is up-to-date with the server.
+  ///
+  /// Subscribe (listen) to the stream to start receiving events.
+  /// Cancel the subscription when no longer needed to free resources.
   Stream<void> get completionEvents {
     if (_completionEvents == null) {
       _completionEvents = _SyncListenerGroup<void>('sync-completion');
@@ -471,9 +669,13 @@ class SyncClient {
 
   _SyncListenerGroup<List<SyncChange>>? _changeEvents;
 
-  /// Get a broadcast stream of incoming synced data changes.
+  /// A broadcast stream of incoming synced data changes.
   ///
-  /// Subscribe (listen) to the stream to actually start listening to events.
+  /// Each event contains a list of [SyncChange] objects, one per affected
+  /// entity type, with the IDs of objects that were put or removed.
+  ///
+  /// Subscribe (listen) to the stream to start receiving events.
+  /// Cancel the subscription when no longer needed to free resources.
   Stream<List<SyncChange>> get changeEvents {
     if (_changeEvents == null) {
       // This stream combines events from two C listeners: connect & disconnect.
@@ -663,7 +865,7 @@ class _SyncListenerGroup<StreamValueType> {
 /// [ObjectBox Sync](https://objectbox.io/sync/) makes data available and
 /// synchronized across devices, online and offline.
 ///
-/// Start a client using [Sync.client()] and connect to a remote server.
+/// Create a client using the [SyncClient] constructor.
 class Sync {
   /// Set to `true` to enable shared global IDs for a Sync-enabled entity class.
   ///
@@ -689,42 +891,99 @@ class Sync {
   /// Returns true if the loaded ObjectBox native library supports Sync.
   static bool isAvailable() => _syncAvailable;
 
-  /// Creates a Sync client associated with the given store and configures it
-  /// with the given options. This does not initiate any connection attempts
-  /// yet, call [SyncClient.start()] to do so.
+  /// Gets the "raw" timestamp (milliseconds since epoch) from the given sync
+  /// clock value.
   ///
-  /// Before [SyncClient.start()], you can still configure some aspects of the
-  /// client, e.g. its [SyncRequestUpdatesMode] mode.
+  /// Note that sync clock values are assigned by ObjectBox and are not to be
+  /// interpreted on their own. Use this function to extract a meaningful
+  /// timestamp from a sync clock value (e.g. stored in a [@SyncClock] field).
+  static int syncClockTimestamp(int syncClockValue) =>
+      C.sync_clock_timestamp(syncClockValue);
+
+  /// Gets the corrected timestamp (milliseconds since epoch) from the given
+  /// sync clock value.
+  ///
+  /// Like [syncClockTimestamp], but applies any time correction if present in the
+  /// sync clock value. However, for most cases, it will return the same value
+  /// as [syncClockTimestamp].
+  static int syncClockTimestampCorrected(int syncClockValue) =>
+      C.sync_clock_timestamp_corrected(syncClockValue);
+
+  /// Creates a [SyncClient] associated with the given store and configures it
+  /// with the given options. This does not initiate any connection attempts
+  /// yet, call [SyncClient.start] to do so.
+  ///
+  /// By default, a Sync client automatically receives updates from the server
+  /// once login succeeded. To configure this differently, call
+  /// [SyncClient.setRequestUpdatesMode] with the wanted mode.
+  ///
+  /// To configure [Sync filter](https://sync.objectbox.io/sync-server/sync-filters)
+  /// variables, pass variable names mapped to their value to [filterVariables].
+  ///
+  /// Sync client filter variables can be used in server-side Sync filters to
+  /// filter out objects that do not match the filter.
+  ///
+  /// To, for example, use self-signed certificates in a local development
+  /// environment or custom CAs, pass certificate paths referring to the local
+  /// file system to [certificatePaths].
+  ///
+  /// To configure Sync behavior, pass bitwise OR-ed [OBXSyncFlags] values to
+  /// [flags]. See [OBXSyncFlags] for available flags.
+  @Deprecated('Use the SyncClient constructor instead')
   static SyncClient client(
-          Store store, String serverUrl, SyncCredentials credentials) =>
-      clientMultiUrls(store, [serverUrl], credentials);
+          Store store, String serverUrl, SyncCredentials credentials,
+          {Map<String, String>? filterVariables,
+          List<String>? certificatePaths,
+          int? flags}) =>
+      SyncClient(store, [serverUrl], [credentials],
+          filterVariables: filterVariables,
+          certificatePaths: certificatePaths,
+          flags: flags);
 
   /// Like [client], but accepts a list of credentials.
   ///
   /// When passing multiple credentials, does **not** support
-  /// [SyncCredentials.none()].
+  /// [SyncCredentials.none].
+  @Deprecated('Use the SyncClient constructor instead')
   static SyncClient clientMultiCredentials(
-          Store store, String serverUrl, List<SyncCredentials> credentials) =>
-      clientMultiCredentialsMultiUrls(store, [serverUrl], credentials);
+          Store store, String serverUrl, List<SyncCredentials> credentials,
+          {Map<String, String>? filterVariables,
+          List<String>? certificatePaths,
+          int? flags}) =>
+      SyncClient(store, [serverUrl], credentials,
+          filterVariables: filterVariables,
+          certificatePaths: certificatePaths,
+          flags: flags);
 
   /// Like [client], but accepts a list of URLs to work with multiple servers.
+  ///
+  /// Passing multiple URLs allows high availability and load balancing (for ex.
+  /// using a ObjectBox Sync Server Cluster). A random URL is selected for each
+  /// connection attempt.
+  @Deprecated('Use the SyncClient constructor instead')
   static SyncClient clientMultiUrls(
-          Store store, List<String> serverUrls, SyncCredentials credentials) =>
-      clientMultiCredentialsMultiUrls(store, serverUrls, [credentials]);
+          Store store, List<String> serverUrls, SyncCredentials credentials,
+          {Map<String, String>? filterVariables,
+          List<String>? certificatePaths,
+          int? flags}) =>
+      SyncClient(store, serverUrls, [credentials],
+          filterVariables: filterVariables,
+          certificatePaths: certificatePaths,
+          flags: flags);
 
   /// Like [client], but accepts a list of credentials and a list of URLs to
   /// work with multiple servers.
   ///
   /// When passing multiple credentials, does **not** support
-  /// [SyncCredentials.none()].
-  static SyncClient clientMultiCredentialsMultiUrls(
-      Store store, List<String> serverUrls, List<SyncCredentials> credentials) {
-    if (syncClientsStorage.containsKey(store)) {
-      throw StateError('Only one sync client can be active for a store');
-    }
-    final client = SyncClient._(store, serverUrls, credentials);
-    syncClientsStorage[store] = client;
-    InternalStoreAccess.addCloseListener(store, client, client.close);
-    return client;
-  }
+  /// [SyncCredentials.none].
+  @Deprecated('Use the SyncClient constructor instead')
+  static SyncClient clientMultiCredentialsMultiUrls(Store store,
+          List<String> serverUrls, List<SyncCredentials> credentials,
+          {Map<String, String>? filterVariables,
+          List<String>? certificatePaths,
+          int? flags}) =>
+      SyncClient(store, serverUrls, credentials,
+          filterVariables: filterVariables,
+          certificatePaths: certificatePaths,
+          flags: flags);
 }

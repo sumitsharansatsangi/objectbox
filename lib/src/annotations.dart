@@ -123,11 +123,28 @@ enum PropertyType {
   // Relation, currently not supported
   // relation,
 
-  /// Unix timestamp (milliseconds since 1970), size: 8-bytes/64-bits
+  /// Date stored with milliseconds precision as a Unix timestamp (64-bits).
+  ///
+  /// DateTime values are stored in UTC and restored in local time.
   date,
 
-  /// Unix timestamp (nanoseconds since 1970), size: 8-bytes/64-bits
+  /// Date stored with nanoseconds precision as a Unix timestamp, (64-bits).
+  ///
+  /// DateTime values are stored in UTC and restored in local time.
+  /// Note: Dart's DateTime only supports microsecond precision.
   dateNano,
+
+  /// Date stored with milliseconds precision as a Unix timestamp (64-bits).
+  ///
+  /// DateTime values are stored and restored as UTC.
+  dateUtc,
+
+  /// Date stored with nanoseconds precision as a Unix timestamp, (64-bits).
+  ///
+  /// DateTime values are stored and restored as UTC.
+  /// This is the recommended type for "high precision" DateTime properties.
+  /// Note: Dart's DateTime only supports microsecond precision.
+  dateNanoUtc,
 
   /// Use with [Property.type] to store a `List<int>` as byte (8-bit integer)
   /// array.
@@ -171,11 +188,24 @@ enum PropertyType {
   /// the same value.
   ///
   /// For more efficiency use `Float32List` instead.
-  floatVector
+  floatVector,
 
   // dart type=List<String>
   // no need to specify explicitly, just use [List<String>]
   // stringVector
+
+  /// Use with [Property.type] to store flexible data as a FlexBuffer.
+  ///
+  /// Supported Dart types (auto-detected):
+  /// - `Map<String, dynamic>`, `Map<String, Object?>`, or `Map<String, Object>` for maps
+  /// - `List<dynamic>`, `List<Object?>`, `List<Object>`, or `List<Map<String, ...>>` for lists
+  ///
+  /// Supported Dart types (requires explicit annotation):
+  /// - `dynamic` or `Object?` for arbitrary values (numbers, strings, lists, maps)
+  ///
+  /// Flex properties can store values of type: integers, floating point values,
+  /// strings, booleans, null, or nested lists and maps of those types.
+  flex
 }
 
 /// An annotation to mark a field of an [Entity] class as the ID property.
@@ -673,4 +703,68 @@ class ExternalName {
   ///
   /// The field may be of type [ToMany].
   const ExternalName({required this.name});
+}
+
+/// An annotation for a [ToOne] to change the name of its target ID property.
+class TargetIdProperty {
+  /// Name used in the database.
+  final String name;
+
+  /// For a `ToOne`, changes the name of its associated target ID (or
+  /// "relation") property.
+  ///
+  /// ```dart
+  /// @Entity()
+  /// class Order {
+  ///     // Change from default "customerId" to "customerRef"
+  ///     @TargetIdProperty("customerRef")
+  ///     final customer = ToOne<Customer>();
+  /// }
+  /// ```
+  ///
+  /// A target ID property is implicitly created (so without defining it in
+  /// the `@Entity` class) for each `ToOne` and stores the ID of the referenced
+  /// target object. By default, it's named like the `ToOne` field plus the
+  /// suffix `Id` (for example `customerId`).
+  ///
+  /// See the [relations documentation](https://docs.objectbox.io/relations) for
+  /// details.
+  const TargetIdProperty(this.name);
+}
+
+/// An annotation to mark a field of a synced [Entity] class as the sync clock.
+/// See [SyncClock.new].
+class SyncClock {
+  /// Marks an [int] (64-bit integer) field of a synced [Entity] class as the
+  /// sync clock, a "hybrid logical clock" to resolve Sync conflicts.
+  ///
+  /// These clock values allow "last write wins" conflict resolution.
+  ///
+  /// There can be only one sync clock per sync entity type; which is also
+  /// recommended for basic conflict resolution.
+  ///
+  /// For new objects, initialize the property value to `0` to reserve "a slot"
+  /// in the object data. ObjectBox Sync will update this property automatically
+  /// on put operations.
+  ///
+  /// As a hybrid clock, it combines a wall clock with a logical counter to
+  /// compensate for some clock skew effects.
+  const SyncClock();
+}
+
+/// An annotation to mark a field of a synced [Entity] class as the sync
+/// precedence. See [SyncPrecedence.new].
+class SyncPrecedence {
+  /// Marks an [int] (64-bit integer) field of a synced [Entity] class as the
+  /// "sync precedence" to customize Sync conflict resolution.
+  ///
+  /// Developer-assigned precedence values are then used to resolve conflicts
+  /// via "higher precedence wins". Defining and assigning precedence values are
+  /// completely in the hands of the developer (the ObjectBox user).
+  ///
+  /// There can be only one sync precedence per sync entity type.
+  ///
+  /// Typically, it is combined with a [SyncClock], with the latter being the
+  /// tie-breaker for equal precedence values.
+  const SyncPrecedence();
 }

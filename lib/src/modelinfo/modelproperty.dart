@@ -1,19 +1,38 @@
+import '../annotations.dart';
 import 'enums.dart';
 import 'iduid.dart';
 import 'model_hnsw_params.dart';
 import 'modelentity.dart';
 
-// ignore_for_file: public_member_api_docs
+// ignore_for_file: public_member_api_docs, prefer_initializing_formals
 
 /// ModelProperty describes a single property of an entity.
 class ModelProperty {
   IdUid id;
 
+  /// See [name].
   late String _name;
 
-  late int _type, _flags;
+  /// One of the constants of OBXPropertyType (raw ObjectBox type).
+  late int _type;
+
+  /// The Dart-side property type from the @Property(type:) annotation.
+  /// Complements [_type] with Dart-specific type variants (e.g. dateUtc).
+  /// Note: this is not always set as this enum is "incomplete", i.e.
+  ///       "obvious" types like string are not covered.
+  ///       We may want to change this in the future and use this more(?).
+  PropertyType? dartType;
+
+  /// Bit-flags according to OBXPropertyFlags
+  late int _flags;
+
   IdUid? _indexId;
   ModelEntity? entity;
+
+  /// If this [isRelation], the name of the field of the ToOne.
+  String? relationField;
+
+  /// If this [isRelation], the name of the entity class the ToOne targets.
   String? relationTarget;
 
   /// The optional [HnswIndex] parameters of this property.
@@ -34,6 +53,9 @@ class ModelProperty {
   // whether the user requested UID information (started a rename process)
   final bool uidRequest;
 
+  /// The name of the property. Except if [isRelation], this is also the name of
+  /// the associated Dart field. If [isRelation] use [relationField] to get the
+  /// name of the ToOne field.
   String get name => _name;
 
   set name(String? value) {
@@ -88,6 +110,11 @@ class ModelProperty {
   bool get fieldIsNullable =>
       _dartFieldType!.substring(_dartFieldType!.length - 1) == '?';
 
+  /// For date types, this flag indicates if the value should be treated as UTC.
+  /// Computed from [dartType].
+  bool get isDateUtc =>
+      dartType == PropertyType.dateUtc || dartType == PropertyType.dateNanoUtc;
+
   IdUid? get indexId => _indexId;
 
   set indexId(IdUid? value) {
@@ -100,14 +127,18 @@ class ModelProperty {
   }
 
   // used in code generator
-  ModelProperty.create(this.id, String? name, int? type,
-      {int flags = 0,
-      String? indexId,
-      this.entity,
-      String? dartFieldType,
-      this.relationTarget,
-      this.uidRequest = false})
-      : _dartFieldType = dartFieldType {
+  ModelProperty.create(
+    this.id,
+    String? name,
+    int? type, {
+    int flags = 0,
+    String? indexId,
+    this.entity,
+    String? dartFieldType,
+    this.relationTarget,
+    this.uidRequest = false,
+    this.dartType,
+  }) : _dartFieldType = dartFieldType {
     this.name = name;
     this.type = type;
     this.flags = flags;
@@ -115,31 +146,36 @@ class ModelProperty {
   }
 
   // used in generated code
-  ModelProperty(
-      {required this.id,
-      required String name,
-      required int type,
-      required int flags,
-      IdUid? indexId,
-      this.relationTarget,
-      this.hnswParams,
-      this.externalName,
-      this.externalType})
-      : _name = name,
-        _type = type,
-        _flags = flags,
-        _indexId = indexId,
-        uidRequest = false;
+  ModelProperty({
+    required this.id,
+    required String name,
+    required int type,
+    required int flags,
+    IdUid? indexId,
+    this.relationField,
+    this.relationTarget,
+    this.hnswParams,
+    this.externalName,
+    this.externalType,
+    this.dartType,
+  }) : _name = name,
+       _type = type,
+       _flags = flags,
+       _indexId = indexId,
+       uidRequest = false;
 
   ModelProperty.fromMap(Map<String, dynamic> data, this.entity)
-      : id = IdUid.fromString(data[ModelPropertyKey.id] as String?),
-        relationTarget = data[ModelPropertyKey.relationTarget] as String?,
-        _dartFieldType = data[ModelPropertyKey.dartFieldType] as String?,
-        uidRequest = data[ModelPropertyKey.uidRequest] as bool? ?? false,
-        hnswParams = ModelHnswParams.fromMap(
-            data[ModelPropertyKey.hnswParams] as Map<String, dynamic>?),
-        externalName = data[ModelPropertyKey.externalName] as String?,
-        externalType = data[ModelPropertyKey.externalType] as int? {
+    : id = IdUid.fromString(data[ModelPropertyKey.id] as String?),
+      relationField = data[ModelPropertyKey.relationField] as String?,
+      relationTarget = data[ModelPropertyKey.relationTarget] as String?,
+      _dartFieldType = data[ModelPropertyKey.dartFieldType] as String?,
+      uidRequest = data[ModelPropertyKey.uidRequest] as bool? ?? false,
+      hnswParams = ModelHnswParams.fromMap(
+        data[ModelPropertyKey.hnswParams] as Map<String, dynamic>?,
+      ),
+      externalName = data[ModelPropertyKey.externalName] as String?,
+      externalType = data[ModelPropertyKey.externalType] as int?,
+      dartType = _propertyTypeFromInt(data[ModelPropertyKey.dartType] as int?) {
     name = data[ModelPropertyKey.name] as String?;
     type = data[ModelPropertyKey.type] as int?;
     flags = data[ModelPropertyKey.flags] as int? ?? 0;
@@ -164,6 +200,9 @@ class ModelProperty {
       ret[ModelPropertyKey.relationTarget] = relationTarget;
     }
     if (!forModelJson) {
+      if (relationField != null) {
+        ret[ModelPropertyKey.relationField] = relationField;
+      }
       if (_dartFieldType != null) {
         ret[ModelPropertyKey.dartFieldType] = _dartFieldType;
       }
@@ -171,6 +210,7 @@ class ModelProperty {
       if (hnswParams != null) {
         ret[ModelPropertyKey.hnswParams] = hnswParams!.toMap();
       }
+      ret[ModelPropertyKey.dartType] = dartType?.index;
     }
     return ret;
   }
@@ -216,6 +256,9 @@ class ModelProperty {
       result += ' index:$type';
     }
 
+    if (relationField != null) {
+      result += ' relField:$relationField';
+    }
     if (relationTarget != null) {
       result += ' relTarget:$relationTarget';
     }
@@ -231,10 +274,15 @@ class ModelPropertyKey {
   static const String indexId = 'indexId';
   static const String type = 'type';
   static const String flags = 'flags';
+  static const String relationField = 'relationField';
   static const String relationTarget = 'relationTarget';
   static const String dartFieldType = 'dartFieldType';
   static const String uidRequest = 'uidRequest';
   static const String hnswParams = 'hnswParams';
   static const String externalName = 'externalName';
   static const String externalType = 'externalType';
+  static const String dartType = 'dartType';
 }
+
+PropertyType? _propertyTypeFromInt(int? index) =>
+    index == null ? null : PropertyType.values[index];

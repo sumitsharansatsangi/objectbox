@@ -209,14 +209,24 @@ class Store implements Finalizable {
   /// ends. Thus, be mindful with the number of active threads.
   ///
   /// ## Debug flags
+  ///
   /// Pass one or more [DebugFlags] to [debugFlags] to enable debug log
   /// output:
+  ///
   /// ```dart
   /// final store = Store(getObjectBoxModel(),
   ///     debugFlag: DebugFlags.logQueries | DebugFlags.logQueryParameters);
   /// ```
   ///
-  /// See our examples for more details.
+  /// Note: to see these log messages when debugging an iOS app, you need to
+  /// open `ios/Runner.xcworkspace` in Xcode and run the app from there.
+  /// See also the Flutter instructions to
+  /// ["Debug Dart and iOS code using Xcode"](https://docs.flutter.dev/testing/native-debugging#debug-dart-and-ios-code-using-xcode).
+  ///
+  /// ## More details
+  ///
+  /// See our [documentation](https://docs.objectbox.io/) and examples for more
+  /// details.
   Store(ModelDefinition modelDefinition,
       {String? directory,
       int? maxDBSizeInKB,
@@ -229,13 +239,19 @@ class Store implements Finalizable {
       : _closesNativeStore = true,
         _absoluteDirectoryPath = _safeAbsoluteDirectoryPath(directory) {
     try {
-      if (Platform.isMacOS && macosApplicationGroup != null) {
+      if (macosApplicationGroup != null) {
+        final isGroupEmpty = macosApplicationGroup.isEmpty;
+        // Docs don't explicitly require a trailing slash, so add one if missing
         if (!macosApplicationGroup.endsWith('/')) {
           macosApplicationGroup += '/';
         }
-        if (macosApplicationGroup.length > 20) {
-          ArgumentError.value(macosApplicationGroup, 'macosApplicationGroup',
-              'Must be at most 20 characters long');
+        // The database library would check for length, but refers to 'prefix'
+        // instead of the parameter name used here. So duplicate the checks.
+        if (isGroupEmpty || macosApplicationGroup.length > 20) {
+          throw ArgumentError.value(
+              macosApplicationGroup,
+              'macosApplicationGroup',
+              'Must be at least 1 and at most 19 characters long');
         }
         // This is required to enable additional interprocess communication
         // (IPC) in sandboxed apps (https://developer.apple.com/documentation/xcode/configuring-app-groups),
@@ -243,7 +259,10 @@ class Store implements Finalizable {
         // library. macOS requires that semaphore names are prefixed with an
         // application group ID.
         // See the constructor docs for more details.
-        withNativeString(macosApplicationGroup, C.posix_sem_prefix_set);
+        // Note: calling this on all platforms is fine, it will be a no-op if
+        // not supported.
+        checkObx(
+            withNativeString(macosApplicationGroup, C.posix_sem_prefix_set));
       }
       _checkStoreDirectoryNotOpen();
       final model = Model(modelDefinition.model);
@@ -497,6 +516,13 @@ class Store implements Finalizable {
     _finalizer.attach(this, _cStore.cast(),
         detach: this, externalSize: 200 * 1024);
   }
+
+  /// Returns the version and features of the platform-specific ObjectBox
+  /// database library.
+  ///
+  /// The format may change in any future release, only use this for
+  /// informational purposes.
+  static String databaseVersion() => dartStringFromC(C.version_core_string());
 
   /// Returns if an open store (i.e. opened before and not yet closed) was found
   /// for the given [directoryPath].
